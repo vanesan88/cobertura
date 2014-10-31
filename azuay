@@ -1,0 +1,175 @@
+#======================================================================#
+#         VALIDACIÓN DE COBERTURA PARA LA PROVINCIA DE AZUAY           #   
+#                               DINEM                                  #
+#                       vanessa San Martín                             #
+#======================================================================#
+
+setwd("C:/!ESPACE/!Inferencia/Envio 141030/SegundaJornada")
+wd<-getwd()
+prov.lev <-list.files()
+wd.provincias <- paste(wd,"/",prov.lev,sep="")
+n <- length (wd.provincias)
+segm.levantados <- matrix(0,n,4)
+for(i in 1:n){
+  setwd(wd.provincias[i])
+  loli <- read.table("us.txt",header=T,sep="\t")
+  loli1 <- loli[loli$ual_estr<10 & loli$ual_numt!=98,]
+  loli1$prov <- str_pad(as.character(loli1$ual_prov),2,"left",pad="0")
+  loli1$estr <- str_pad(as.character(loli1$ual_estr),2,"left",pad="0")
+  loli1$segm <- str_pad(as.character(loli1$ual_segm),5,"left",pad="0")
+  loli1$istdr=paste(loli1$prov,loli1$estr,loli1$segm,sep="")
+  c <- c("01","02","03","04")
+  for(j in 1:4){
+    x<-loli1$estr==c[j]
+    segm.levantados[i,j]<-length(unique(loli1[x,]$istdr))
+  }
+  ## guardar identificadores
+  loli1$x=1
+  loli1.aggr <- aggregate(loli1$x,by=list(loli1$istdr),FUN=sum)
+  setwd("C:/!ESPACE/!Inferencia/Cobertura/Cobertura muestral")
+  nombre <- paste(prov.lev[i],".txt")
+  write.table(loli1.aggr,file = nombre, sep = "\t")
+}
+resultado <- data.frame(prov.lev,segm.levantados)
+colnames(resultado)<-c("Dominio","E1a","E1b","E2","E3")
+print(resultado)
+
+
+
+
+
+#1================================================
+#librería
+library(plyr)
+library(reshape)
+library(doBy)
+
+#2================================================
+us01 <- read.table("us01.txt",dec=".",header=T,sep="\t")
+#Ejemplo: read.table (file = "ejemplo.txt", header = TRUE, row.names = 1, sep = "\t", dec = ".") 
+us01[is.na(us01)] <- 0
+attach(us01)
+
+#3=============================================================================================================================================================
+#y<-Count(us01, "id")=>count sirve para contar elementos iguales de una variable
+
+
+#=>convierte valores nulos en 0
+#us01$us_total <- NULL#=>borrar variables de la lista
+#rm(us_total)
+names(us01)#=>me permite ver etiquetas de variables
+print(names(us01))
+help(concat)
+help(count)
+help(ave)
+(??enumerate)
+
+help(str_pd)
+
+#Crear la variable identificador 
+
+#us01$prov <- str_pad(as.character(loli1$ual_prov),2,"left",pad="0")
+#us01$estr <- str_pad(as.character(loli1$ual_estr),2,"left",pad="0")
+#us01$segm <- str_pad(as.character(loli1$ual_segm),5,"left",pad="0")
+#us01$id=paste(us01$prov,us01$estr,loli1$segm,sep="")
+
+#loli1$bb <- str_pad(as.character(loli1$ual_segm),5,"left",pad="0")
+id<-paste(us01$ual_prov, us01$ual_cant, us01$ual_parr, us01$ual_estr, us01$ual_segm)
+us01$id<-id
+id<-gsub(" ","",id)#=>borra los espacios dentro de la variable identificadora
+
+
+#Crear la variable us_total=>calcula la suma de las hectareas por tipo de uso de suelo de todos los elementos de la lista
+us_total_t<-us_k301ha+us_k302ha+us_k303ha+us_k304ha+us_k305ha+us_k306ha+us_k307ha+us_k308ha+us_k309ha+us_k310ha+us_k311ha
+us01$us_total_t<-us_total_t
+View(us_total)
+class(us_total)#=>permite conocer que tipo de variable es la que estoy usando
+
+#Crear la base us01_1 con la superficie total de terrenos por encuesta
+us01_1<-subset(us01, us_numt==98)
+
+#Crear un atabla que contiene la suma por columna por identificador
+TOTAL<-with(us01_1,aggregate(us_total_t,by =list(id) ,FUN=sum))
+TOTAL$id<-TOTAL$Group.1
+TOTAL$us_total_f<-TOTAL$x
+TOTAL$Group.1<-NULL
+TOTAL$x<-NULL
+identical()
+#us01[us01$us_numt==98,c("us_total")]=>selecciona los 
+#us01_1<-NULL
+
+
+#Crear la tabla us01_2 que contiene la base de datos con la superficie total de terreno y con la suma total por segmento
+us01_2<-merge(us01_1,TOTAL,by="id")
+
+
+#Crear la variable contador para identificar lo segmentos unicos
+contador<-ave(us01_2$ual_estr, us01_2$id, FUN=seq_along)#=>Cuenta las variables comunes en función  a un identificador
+us01_2$contador<-contador
+
+#Crear la tabla us01_3 que contiene la información de superficie total por segmento
+us01_3<-subset(us01_2, contador==1)
+
+
+#Comprobación de la COBERTURA
+cobertura<-ifelse(us01_3$ual_estr==1 & us01_3$us_total_f>9, "CUMPLE",
+           ifelse(us01_3$ual_estr==2 & us01_3$us_total_f>36, "CUMPLE",
+           ifelse(us01_3$ual_estr==3 & us01_3$us_total_f>144, "CUMPLE",
+           ifelse(us01_3$ual_estr==4 & us01_3$us_total_f>576, "CUMPLE",
+           ifelse(us01_3$ual_estr>5,"LISTA","NO CUMPLE")))))
+
+us01_3$cobertura<-cobertura
+
+us01_4<-subset(us01_3, cobertura!="LISTA")
+
+#Comprobación suma final por segmento
+subset(us01_3, id==1853117616, select=us_total_f)
+subset(us01_3, id==1853119641, select=us_total_f)
+subset(us01_3, id==1853117616, select=us_total_f)
+
+#sub = subset(hw1, Ozone > 31 & Temp > 90, select = Solar.R)
+
+#Máximos y minimos
+
+#ddply(d, "id.a", function(df) return(df[df$dist==min(df$dist),]))
+
+
+#===============================================================================================================================================================
+#CÁLCULOS ADICIONALES-POR ESTRATOS
+#===============================================================================================================================================================
+
+#=>NÚMERO DE SEGMENTOS MÁXIMOS Y MÍNIMOS
+segmentos<-t<-count(us01_3, "ual_estr")
+s<-with(us01_3,tapply(us_total_f, ual_estr, FUN = max))
+View(s)
+sm<-with(us01_3,tapply(us_total_f, ual_estr, FUN = min))
+View(sm)
+
+#=>NÚMERO DE TERRENOS MAXIMOS Y MINIMOS
+sub<-subset(us01, us_numl!= 98, select = ual_estr)
+sub_1<-subset(us01, us_numl!=98)
+terrenos<-count(sub, "ual_estr")
+t<-with(sub_1,tapply(us_total_t, ual_estr, FUN = max))
+View(t)
+tm<-with(sub_1,tapply(us_total_t, ual_estr, FUN = min))
+View(tm)
+#length(subset(numbers, numbers==x)) CONTAR SI
+
+#=>NÚMERO DE UPAS
+sub2<-subset(us01, us_numl==98, select = ual_estr)
+upas<-count(sub2, "ual_estr")
+u<-with(us01_1,tapply(us_total_t, ual_estr, FUN = max))
+View(u)
+um<-with(us01_1,tapply(us_total_t, ual_estr, FUN = min))
+View(um)
+
+#==============================
+sub4<-merge(sub, sub3, by="row.names")
+count(sub4, "ual_estr")
+
+#with(mydf, tapply(Spp, list(Cnty, Yr), FUN = function(x) length(unique(x))))
+h<-with(us01,tapply(ual_segm, ual_estr, FUN = function(x) length(unique(x))))
+View(h)
+
+l<-with(us01,tapply(id, ual_estr, FUN = function(x) length(unique(x))))
+View(l)
